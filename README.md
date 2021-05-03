@@ -5,6 +5,18 @@ Partial port of the Linux Gadget driver [g_zero](https://elixir.bootlin.com/linu
 
 I gave up on getting all the tests to run, so I settled on the performance tests.
 
+The ```PICO_SDK_PATH``` env var should point to the Pico SDK.
+
+Build:
+```
+$ cd pico-usbtest
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+
+```
+
 Use test.py to run tests:
 ```
 $ sudo python3 test.py --perf
