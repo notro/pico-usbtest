@@ -219,26 +219,8 @@ def usbtest_test(fd, interface, test_num, iterations=1, length=512, vary=512, sg
         print_kmsg()
 
 
-def run_usbtests(dev, config, args):
-    interface = config.interfaces()[0]
-
-    # Fixme check current config first
-    if dev.is_kernel_driver_active(interface.bInterfaceNumber):
-        if args.debug:
-            print('Detach kernel driver')
-        dev.detach_kernel_driver(interface.bInterfaceNumber)
-        print_kmsg()
-
-    if args.debug:
-        print('Set sourcesink config')
-    config.set()
-    print_kmsg()
-
-    if not dev.is_kernel_driver_active(interface.bInterfaceNumber):
-        if args.debug:
-            print('Attach kernel driver')
-        dev.attach_kernel_driver(interface.bInterfaceNumber)
-        print_kmsg()
+def run_usbtests(dev, args):
+    interface = dev[0].interfaces()[0]
 
     fd = dev_open_fd(dev)
 
@@ -247,104 +229,6 @@ def run_usbtests(dev, config, args):
             usbtest_test(fd, interface, test, iterations=args.iterations, length=args.length, vary=args.vary, sglen=args.sglen, verbose=True)
         if not args.loop:
             break
-
-
-################################################################################
-#
-# Run loopback test
-#
-
-TRANSFER_TIMEOUT_MS = 5000
-
-def loopback_test(interface, length):
-    print(f'loopback_test: length={length} :: ', end='')
-
-    dev = interface.device
-
-    send = array.array('B', os.urandom(length))
-    receive = array.array('B', b'\x00' * length)
-
-    start = time.process_time()
-
-    #print('send', send)
-    try:
-        ret = dev.write(0x01, send, TRANSFER_TIMEOUT_MS)
-        if not len(send) % interface.endpoints()[0].wMaxPacketSize:
-            dev.write(0x01, None, TRANSFER_TIMEOUT_MS) # zlp
-    except usb.core.USBError as e:
-        print(f'write: {e}')
-        return
-
-    #print('ret', ret)
-    if ret != len(send):
-        print(f'write: ret={ret} differs from expected {len(send)}')
-        return
-
-    try:
-        ret = dev.read(0x81, receive, TRANSFER_TIMEOUT_MS)
-    except usb.core.USBError as e:
-        print(f'read: {e}')
-        return
-
-    end = time.process_time()
-
-    if ret != len(send):
-        print(f'read: ret={ret} differs from expected {len(send)}')
-        return
-
-    #print('receive', receive)
-    if send != receive:
-        print(f'read: sent and received differs')
-        print('SENT')
-        print(send)
-        print('RECEIVED')
-        return
-
-    print(f'{((end - start) * 1000):.1f} ms')
-
-
-def run_loopback(dev, config, args):
-    interface = config.interfaces()[0]
-
-    if dev.is_kernel_driver_active(interface.bInterfaceNumber):
-        if args.debug:
-            print('Detach kernel driver')
-        dev.detach_kernel_driver(interface.bInterfaceNumber)
-        print_kmsg()
-
-    if args.debug:
-        print('Set loopback config')
-    config.set()
-    time.sleep(1)
-    print_kmsg()
-
-    # Prevent kernel driver from binding to loopback config
-    if dev.is_kernel_driver_active(interface.bInterfaceNumber):
-        if args.debug:
-            print('Unbind kernel driver')
-
-        name = None
-        for path in Path('/sys/bus/usb/drivers/usbtest').glob('*'):
-            if path.is_symlink() and '-' in path.name:
-                name = path.name
-
-        #print('NAME', name)
-        if name:
-            with open('/sys/bus/usb/drivers/usbtest/unbind', 'w') as f:
-                f.write(name)
-
-        print_kmsg()
-
-    if 0 and dev.is_kernel_driver_active(interface.bInterfaceNumber):
-        if args.debug:
-            print('Detach kernel driver')
-        dev.detach_kernel_driver(interface.bInterfaceNumber)
-        print_kmsg()
-
-    length = args.vary
-    while length <= args.length:
-        loopback_test(interface, length)
-        length += args.vary
 
 
 ################################################################################
@@ -421,12 +305,6 @@ def main(args):
         print('No device found')
         return
 
-    sourcesink = dev[0]
-    try:
-        loopback = dev[1]
-    except usb.core.USBError:
-        loopback = None
-
     init_kmsg(args.debug)
 
     if args.reset:
@@ -437,13 +315,7 @@ def main(args):
         print_kmsg()
 
     if args.test:
-        run_usbtests(dev, sourcesink, args)
-
-    if args.loopback:
-        if not loopback:
-            print("No loopback configuration found")
-        else:
-            run_loopback(dev, loopback, args)
+        run_usbtests(dev, args)
 
 
 if __name__ == '__main__':
@@ -481,7 +353,6 @@ if __name__ == '__main__':
     parser.add_argument('--exclude', '-x', nargs='?', type=test_arg_parse, help='exclude specified test cases')
     #    -n              no test running, show devices to be tested
     parser.add_argument('--perf', action='store_true', help='run performance tests 27 and 28')
-    parser.add_argument('--loopback', action='store_true', help='run loopback tests')
     parser.add_argument('--reset', action='store_true', help='reset USB device')
     parser.add_argument('--debug', '-d', action='count', default=0, help='increase debug output')
 
