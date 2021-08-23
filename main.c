@@ -3,8 +3,6 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-#include "usbtest.h"
-
 static uint32_t led_on_ms, led_off_ms;
 
 static void board_led_blink_on(uint32_t off_ms)

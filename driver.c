@@ -2,13 +2,19 @@
 
 #include "tusb_option.h"
 
-#include "usbtest.h"
 #include "device/usbd_pvt.h"
+
+#define USBTEST_LOG1    //printf
+#define USBTEST_LOG2    //printf
+
+void board_led_activity(void);
 
 static uint8_t _ctrl_req_buf[256];
 
 #define BULK_BUFLEN    (32 * 1024)
 
+static uint8_t _bulk_in;
+static uint8_t _bulk_out;
 static uint8_t _bulk_in_buf[BULK_BUFLEN];
 static uint8_t _bulk_out_buf[BULK_BUFLEN];
 
@@ -16,8 +22,6 @@ static uint8_t _bulk_out_buf[BULK_BUFLEN];
 static void usbtest_init(void)
 {
     USBTEST_LOG1("%s:\n", __func__);
-
-    usbtest_sourcesink_init(_bulk_in_buf, _bulk_out_buf, sizeof(_bulk_in_buf));
 }
 
 static void usbtest_reset(uint8_t rhport)
@@ -25,6 +29,14 @@ static void usbtest_reset(uint8_t rhport)
     (void) rhport;
 
     USBTEST_LOG1("%s: rhport%u\n", __func__, rhport);
+}
+
+static void usbtest_disable_endpoint(uint8_t rhport, uint8_t *ep_addr)
+{
+    if (*ep_addr) {
+        usbd_edpt_close(rhport, *ep_addr);
+        *ep_addr = 0;
+    }
 }
 
 static uint16_t usbtest_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
@@ -36,9 +48,14 @@ static uint16_t usbtest_open(uint8_t rhport, tusb_desc_interface_t const * itf_d
     uint16_t const len = sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t);
     TU_VERIFY(max_len >= len, 0);
 
-    usbtest_sourcesink_disable(rhport);
+    usbtest_disable_endpoint(rhport, &_bulk_in);
+    usbtest_disable_endpoint(rhport, &_bulk_out);
 
-    TU_ASSERT( usbtest_sourcesink_enable(rhport, itf_desc) );
+    uint8_t const * p_desc = tu_desc_next(itf_desc);
+    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_bulk_out, &_bulk_in) );
+
+    TU_ASSERT ( usbd_edpt_xfer(rhport, _bulk_out, _bulk_out_buf, sizeof(_bulk_out_buf)) );
+    TU_ASSERT ( usbd_edpt_xfer(rhport, _bulk_in, _bulk_in_buf, sizeof(_bulk_in_buf)) );
 
     USBTEST_LOG2("\n\n\n\n");
 
@@ -92,7 +109,14 @@ static bool usbtest_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t resul
     if (!xferred_bytes)
         USBTEST_LOG2("                 ZLP\n");
 
-    return usbtest_sourcesink_complete(rhport, ep_addr, xferred_bytes);
+    if (ep_addr == _bulk_out)
+        TU_ASSERT ( usbd_edpt_xfer(rhport, _bulk_out, _bulk_out_buf, sizeof(_bulk_out_buf)) );
+    else if (ep_addr == _bulk_in)
+        TU_ASSERT ( usbd_edpt_xfer(rhport, _bulk_in, _bulk_in_buf, sizeof(_bulk_in_buf)) );
+    else
+        return false;
+
+    return true;
 }
 
 static usbd_class_driver_t const _usbtest_driver[] =

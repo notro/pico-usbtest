@@ -2,7 +2,6 @@
 
 #include <string.h>
 #include "tusb.h"
-#include "usbtest.h"
 
 enum string_index {
     RESERVED_IDX = 0,
@@ -88,7 +87,7 @@ usbtest_source_sink_config_descriptor_t source_sink_config_descriptor = {
 
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-    USBTEST_LOG2("%s: index=%u\n", __func__, index);
+    //printf("%s: index=%u\n", __func__, index);
 
     return (uint8_t const *)&source_sink_config_descriptor;
 }
