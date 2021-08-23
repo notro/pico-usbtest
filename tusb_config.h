@@ -7,8 +7,6 @@
 
 #define CFG_USBTEST_BULK_ENPOINT_SIZE	64
 
-#define CFG_USBTEST_ENABLE_LOOPBACK     0
-
 //#undef CFG_TUSB_DEBUG
 //#define CFG_TUSB_DEBUG              2
 

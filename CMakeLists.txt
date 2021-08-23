@@ -13,7 +13,6 @@ add_executable(usbtest
 	usb_descriptors.c
 	driver.c
 	sourcesink.c
-	loopback.c
 )
 
 target_include_directories(usbtest PRIVATE ${CMAKE_CURRENT_LIST_DIR})

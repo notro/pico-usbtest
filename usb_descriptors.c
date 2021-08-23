@@ -4,15 +4,12 @@
 #include "tusb.h"
 #include "usbtest.h"
 
-uint8_t usbtest_current_configuration_idx;
-
 enum string_index {
     RESERVED_IDX = 0,
     MANUFACTURER_IDX,
     PRODUCT_IDX,
     SERIALNUMBER_IDX,
     SOURCE_SINK_IDX,
-    LOOPBACK_IDX,
 };
 
 tusb_desc_device_t const device_descriptor = {
@@ -33,11 +30,7 @@ tusb_desc_device_t const device_descriptor = {
     .iProduct           = PRODUCT_IDX,
     .iSerialNumber 	    = SERIALNUMBER_IDX,
 
-#if CFG_USBTEST_ENABLE_LOOPBACK
-    .bNumConfigurations = 2,
-#else
     .bNumConfigurations = 1,
-#endif
 };
 
 uint8_t const *tud_descriptor_device_cb(void)
@@ -71,7 +64,7 @@ usbtest_source_sink_config_descriptor_t source_sink_config_descriptor = {
         .bDescriptorType = TUSB_DESC_CONFIGURATION,
         .wTotalLength = sizeof(usbtest_source_sink_config_descriptor_t),
         .bNumInterfaces = 1,
-        .bConfigurationValue = USBTEST_SOURCESINK + 1,
+        .bConfigurationValue = 1,
         .iConfiguration = SOURCE_SINK_IDX,
         .bmAttributes = TU_BIT(7) | TUSB_DESC_CONFIG_ATT_SELF_POWERED,
         .bMaxPower = 100 / 2,
@@ -93,61 +86,11 @@ usbtest_source_sink_config_descriptor_t source_sink_config_descriptor = {
     .bulk_out = USBTEST_BULK_DESCRIPTOR(0x01),
 };
 
-typedef struct TU_ATTR_PACKED {
-    tusb_desc_configuration_t config;
-    tusb_desc_interface_t interface;
-    tusb_desc_endpoint_t bulk_in; //
-    tusb_desc_endpoint_t bulk_out;
-} usbtest_loopback_config_descriptor_t;
-
-usbtest_loopback_config_descriptor_t loopback_config_descriptor = {
-    .config = {
-        .bLength = sizeof(tusb_desc_configuration_t),
-        .bDescriptorType = TUSB_DESC_CONFIGURATION,
-        .wTotalLength = sizeof(usbtest_loopback_config_descriptor_t),
-        .bNumInterfaces = 1,
-        .bConfigurationValue = USBTEST_LOOPBACK + 1,
-        .iConfiguration = LOOPBACK_IDX,
-        .bmAttributes = TU_BIT(7) | TUSB_DESC_CONFIG_ATT_SELF_POWERED,
-        .bMaxPower = 100 / 2,
-    },
-
-    .interface = {
-        .bLength = sizeof(tusb_desc_interface_t),
-        .bDescriptorType = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber = 0,
-        .bAlternateSetting = 0,
-        .bNumEndpoints = 2,
-        .bInterfaceClass = TUSB_CLASS_VENDOR_SPECIFIC,
-        .bInterfaceSubClass = 0x00,
-        .bInterfaceProtocol = 0x00,
-        .iInterface = LOOPBACK_IDX,
-    },
-
-    .bulk_in = USBTEST_BULK_DESCRIPTOR(0x81),
-    .bulk_out = USBTEST_BULK_DESCRIPTOR(0x01),
-};
-
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
     USBTEST_LOG2("%s: index=%u\n", __func__, index);
 
-    uint8_t const *desc;
-
-    switch (index) {
-    case USBTEST_SOURCESINK:
-        desc = (uint8_t const *)&source_sink_config_descriptor;
-        break;
-    case USBTEST_LOOPBACK:
-        desc = (uint8_t const *)&loopback_config_descriptor;
-        break;
-    default:
-        return NULL;
-    }
-
-    usbtest_current_configuration_idx = index;
-
-    return (uint8_t const *)desc;
+    return (uint8_t const *)&source_sink_config_descriptor;
 }
 
 typedef struct TU_ATTR_PACKED
@@ -167,7 +110,6 @@ static const char *strings[] = {
     [PRODUCT_IDX] = "Gadget Zero",
     [SERIALNUMBER_IDX] = "0123456789.0123456789.0123456789",
     [SOURCE_SINK_IDX] = "source and sink data",
-    [LOOPBACK_IDX] = "loop input to output",
 };
 
 uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
