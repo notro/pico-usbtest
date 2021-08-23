@@ -50,34 +50,25 @@ static uint16_t usbtest_open(uint8_t rhport, tusb_desc_interface_t const * itf_d
     return len;
 }
 
-static bool usbtest_control_request(uint8_t rhport, tusb_control_request_t const * req)
+static bool usbtest_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * req)
 {
-    uint16_t wLength;
+    uint16_t wLength = tu_min16(req->wLength, sizeof(_ctrl_req_buf));
     int ret;
 
-    wLength = tu_min16(req->wLength, sizeof(_ctrl_req_buf));
-
-    USBTEST_LOG2("%s:  bRequest=0x%02x bmRequestType=0x%x %s wLength=%u(%u) \n",
+    USBTEST_LOG2("%s:  bRequest=0x%02x bmRequestType=0x%x %s wLength=%u(%u) stage=%u\n",
                  __func__, req->bRequest, req->bmRequestType,
-                 req->bmRequestType_bit.direction ? "IN" : "OUT", wLength, req->wLength);
+                 req->bmRequestType_bit.direction ? "IN" : "OUT", wLength, req->wLength, stage);
 
-    if (req->bmRequestType_bit.recipient == TUSB_REQ_RCPT_ENDPOINT) {
-        // REVISIT: Is it necessary to do anything on endpoint set/clear stall?
-        USBTEST_LOG2("TUSB_REQ_RCPT_ENDPOINT\n");
+    if (stage != CONTROL_STAGE_SETUP)
         return true;
-    }
-
-    if (req->bmRequestType_bit.type != TUSB_REQ_TYPE_STANDARD) {
-        USBTEST_LOG2("NOT TUSB_REQ_TYPE_STANDARD: %u\n", req->bmRequestType_bit.type);
-        return false;
-    }
 
     switch (req->bRequest) {
 
     // Used by test #9
     // FIXME: tinyusb core should handle this
     case TUSB_REQ_GET_STATUS:
-        if (req->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE ||
+        if (req->bmRequestType_bit.type != TUSB_REQ_TYPE_STANDARD ||
+            req->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE ||
             req->bmRequestType_bit.direction != TUSB_DIR_IN)
             return false;
 
@@ -87,28 +78,12 @@ static bool usbtest_control_request(uint8_t rhport, tusb_control_request_t const
         USBTEST_LOG2("TUSB_REQ_GET_STATUS: intf=%u\n", req->wIndex);
         break;
 
-    // REVISIT: handled by upstream commit eeea19c0ab1c ("usbd ack SET_INTERFACE if it is not implemented by class driver.")
-    case TUSB_REQ_SET_INTERFACE:
-        if (req->bmRequestType != TUSB_REQ_RCPT_INTERFACE)
-            return false;
-        USBTEST_LOG2("TUSB_REQ_SET_INTERFACE: alt=%u intf=%u\n", req->wValue, req->wIndex);
-        break;
-
     default:
         USBTEST_LOG2("REQ not recognised (core might handle it)\n");
         return false;
     }
 
     return tud_control_xfer(rhport, req, _ctrl_req_buf, wLength);
-}
-
-static bool usbtest_control_complete(uint8_t rhport, tusb_control_request_t const * req)
-{
-    USBTEST_LOG2("%s: bRequest=0x%02x bmRequestType=0x%x %s wLength=%u\n",
-                 __func__, req->bRequest, req->bmRequestType,
-                 req->bmRequestType_bit.direction ? "IN" : "OUT", req->wLength);
-
-    return true;
 }
 
 static bool usbtest_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -137,8 +112,7 @@ static usbd_class_driver_t const _usbtest_driver[] =
         .init             = usbtest_init,
         .reset            = usbtest_reset,
         .open             = usbtest_open,
-        .control_request  = usbtest_control_request,
-        .control_complete = usbtest_control_complete,
+        .control_xfer_cb  = usbtest_control_xfer_cb,
         .xfer_cb          = usbtest_xfer_cb,
         .sof              = NULL
     },
