@@ -2,6 +2,7 @@
 
 #include "tusb_option.h"
 
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
 #define USBTEST_LOG1    //printf
